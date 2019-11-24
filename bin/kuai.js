@@ -90,48 +90,25 @@ program
 		 * 选择需要创建的类库项目类型
 		 *
 		 */
-		const { projectType } = await prompt({
-			name: "projectType",
+		const { branch } = await prompt({
+			name: "branch",
 			type: "list",
-			message: "项目类型 =>",
-			choices: ["node-lib", "web-lib", "web-ui"]
+			message: "模板分支类型 =>",
+			choices: [
+				"lib@monorepo",
+				"lib@single",
+				"ui@vue",
+				"ui@react",
+				"ui@uniapp",
+				"ui@taro",
+				"cmp@vue",
+				"cmp@react",
+				"cmp@uniapp",
+				"cmp@taro"
+			]
 		});
 
-		usrStdin.projectType = projectType;
-
-		const { monorepo } = await prompt({
-			name: "monorepo",
-			type: "confirm",
-			message: "是否采用monorepo项目风格?"
-		});
-
-		usrStdin.monorepo = monorepo;
-
-		if (monorepo) {
-			const { independent } = await prompt({
-				name: "independent",
-				type: "confirm",
-				message: "版本是否独立管理?"
-			});
-			usrStdin.monorepo = { independent };
-		}
-
-		if (projectType === "web-ui") {
-			const { uiFrame } = await prompt({
-				name: "uiFrame",
-				type: "list",
-				message: "UI库选型",
-				choices: ["vue", "react"]
-			});
-
-			usrStdin.uiFrame = uiFrame;
-		}
-
-		if (usrStdin.projectType !== "web-ui") {
-			usrStdin.branch = usrStdin.monorepo ? "master" : "non-monorepo";
-		} else {
-			usrStdin.branch = `${usrStdin.uiFrame}-${usrStdin.monorepo ? "ui-lib" : "cmp"}`;
-		}
+		usrStdin.branch = branch;
 
 		createProject(usrStdin).catch(err => {
 			console.log();

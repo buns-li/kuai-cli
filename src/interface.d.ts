@@ -10,6 +10,19 @@ export interface KuaiMonoRepo {
 	independent: boolean;
 }
 
+export type BranchType =
+	| "master"
+	| "lib@monorepo"
+	| "lib@single"
+	| "ui@vue"
+	| "ui@react"
+	| "ui@uniapp"
+	| "ui@taro"
+	| "cmp@vue"
+	| "cmp@react"
+	| "cmp@uniapp"
+	| "cmp@taro";
+
 export interface KuaiConfig {
 	/**
 	 * 当前项目名称
@@ -26,27 +39,11 @@ export interface KuaiConfig {
 	/**
 	 * 远程分支地址
 	 */
-	branch?: string;
+	branch?: BranchType;
 	/**
-	 * 项目类型
+	 * ui組件的前綴
 	 */
-	projectType?: ProjectType;
-	/**
-	 * 是否是monorepo风格项目
-	 */
-	monorepo?: boolean | KuaiMonoRepo;
-	/**
-	 * 是否采用Typescript
-	 */
-	ts: boolean;
-	/**
-	 * UI框架
-	 */
-	uiFrame?: UIFrameType;
-	/**
-	 * css预处理器
-	 */
-	cssPreProcessor?: CssPreProcessorType;
+	uiPrefix?: string;
 }
 
 export interface PublishConfigData {

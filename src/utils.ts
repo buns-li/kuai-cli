@@ -1,8 +1,9 @@
+import path from "path";
 import chalk from "chalk";
 import download from "download-git-repo";
 import fs from "fs-extra";
 import { execSync, exec, ExecOptions, StdioOptions } from "child_process";
-import { KV, PkgData } from "./interface";
+import { KV, PkgData, KuaiConfig } from "./interface";
 
 const Spinner = require("cli-spinner").Spinner;
 
@@ -70,6 +71,21 @@ export function hasYarn(): boolean {
 }
 
 /**
+ * 判断是否已全局安装rollup
+ *
+ * @export
+ * @returns {boolean}
+ */
+export function hasRollup(): boolean {
+	try {
+		execSync("rollup -v", { stdio: "ignore" });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * 判断是否已全局安装lerna
  *
  * @export
@@ -101,19 +117,20 @@ export function hasVSCode(): boolean {
  * @returns {Promise<void>}
  */
 export async function installGlobalPkg(pkgName: string): Promise<void> {
-	const spinner = startSpinner(`Installing ${pkgName}`);
+	// const spinner = startSpinner(`Installing ${pkgName}`);
+	console.log(chalk.yellow(`npm i -g ${pkgName} ...`));
 
 	await execAsync(isWindows ? `npm i -g ${pkgName}` : `sudo npm i -g ${pkgName}`);
 
-	spinner.stop(true);
+	// spinner.stop(true);
 
 	console.log(chalk.green(`${pkgName} Installed Succeed!`));
 }
 
-export async function initLerna(): Promise<void> {
+export async function initLerna(cwd: string): Promise<void> {
 	const spinner = startSpinner(`lerna init...`);
 
-	await execAsync("lerna init");
+	await execAsync("lerna init", { cwd });
 
 	spinner.stop(true);
 
@@ -209,4 +226,41 @@ export function downloadGitRepo(gitUrl: string, dest: string, opts?: KV<any>): P
 			err ? reject(err) : resolve();
 		});
 	});
+}
+
+export function getPkgData(cwd: string): PkgData {
+	const cwdPackageJSONPath = path.resolve(cwd, "package.json");
+
+	const isExists = fs.statSync(cwdPackageJSONPath);
+
+	if (isExists) {
+		// 获取得到当前的项目类型
+		const pkgData = require(cwdPackageJSONPath) as PkgData;
+		return pkgData;
+	}
+
+	throw new Error(`'kuai' was not found in ${path.resolve(cwd, "./package.json")}!`);
+}
+
+export function getKuaiConfig(cwd: string): KuaiConfig {
+	return getPkgData(cwd).kuai;
+}
+
+export function getUIPrefix(kuaiConfig: KuaiConfig): string {
+	if (kuaiConfig.uiPrefix) return kuaiConfig.uiPrefix;
+
+	switch (kuaiConfig.branch) {
+		case "ui@vue":
+		case "cmp@vue":
+			return "v";
+		case "ui@react":
+		case "cmp@react":
+			return "r";
+		case "ui@uniapp":
+		case "cmp@uniapp":
+			return "u";
+		case "ui@taro":
+		case "cmp@taro":
+			return "t";
+	}
 }

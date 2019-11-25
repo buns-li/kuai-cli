@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs-extra";
 import execa from "execa";
 import { sortObject } from "../../utils";
-import { PackageInfo } from "../package-info";
+import { PackageInfo, getPackageInfo } from "../package-info";
 
 /**
  *
@@ -214,7 +214,10 @@ export default ${pkgInfo.camelCaseName};`,
 		{ encoding: "utf-8" }
 	);
 
-	const allPkgDirs = pkgInfo.siblings.concat(pkgInfo).sort((a, b) => (a.dirname > b.dirname ? 1 : -1));
+	const allPkgDirs = pkgInfo.siblings
+		.map(f => getPackageInfo(f, pkgInfo.kuai))
+		.concat(pkgInfo)
+		.sort((a, b) => (a.dirname > b.dirname ? 1 : -1));
 
 	// 更新components.js文件
 	await fs.writeFile(

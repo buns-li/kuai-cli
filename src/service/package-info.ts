@@ -1,5 +1,5 @@
 import path from "path";
-import fs from "fs-extra";
+import fs from "fs";
 import { getUIPrefix, toCamelCase, getPkgData } from "../utils";
 import { BranchType, PkgData, KuaiConfig } from "../interface";
 
@@ -45,7 +45,11 @@ export interface PackageInfo {
 	 */
 	pkgData: PkgData;
 
-	siblings: PackageInfo[];
+	kuai: KuaiConfig;
+	/**
+	 * 同级目录
+	 */
+	siblings: string[];
 }
 
 /**
@@ -83,10 +87,10 @@ export function getPackageInfo(pkgPath: string, kuai: KuaiConfig, pkgFullName?: 
 		testPath: path.resolve(pkgPath, `./test/`),
 		usage: kuai.branch,
 		pkgData,
+		kuai,
 		siblings: fs
 			.readdirSync(cwd)
 			.map(f => path.resolve(cwd, f))
 			.filter(f => f !== pkgPath && fs.statSync(f).isDirectory())
-			.map(f => getPackageInfo(f, kuai))
 	} as PackageInfo;
 }

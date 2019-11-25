@@ -1,29 +1,45 @@
-import chalk from "chalk";
 import path from "path";
+import chalk from "chalk";
 import execa from "execa";
-import { useLernaCreate, createApiExtractor, updateTSConfigPaths, updatePkgPackageDotJson } from "./helper";
+import { callLernaCreate, supportLib } from "./helper";
+import { startSpinner, OkOut } from "../../utils";
+import { PackageInfo } from "../package-info";
 
-export async function create(pkgName: string, depPkg?: string[][]): Promise<void> {
-	// 创建package对应的文件夹和文件
-	const cwd = process.cwd();
-
-	// 包对应的地址
-	const pkgDir = path.resolve(cwd, "packages", path.basename(pkgName));
-
-	console.log(chalk.bold(chalk.yellow(`create ${pkgName} ...`)));
-
-	await useLernaCreate(pkgDir, pkgName, true);
+export async function create(pkgInfo: PackageInfo, depPkg?: string[][]): Promise<void> {
+	let spinner = startSpinner(`Use "lerna create" to init ${pkgInfo.fullname}...`);
+	await callLernaCreate(pkgInfo);
+	spinner.stop();
+	console.log();
+	console.log(OkOut + chalk.greenBright(` Use "lerna create" to init ${pkgInfo.fullname} OK!`));
 	console.log();
 
-	await createApiExtractor(pkgDir, await import("../../tpl/api-extractor").then(a => a.default));
+	spinner = startSpinner(`Generate or Update relative files for ${pkgInfo.fullname} ...`);
+	await supportLib(pkgInfo, depPkg);
+	spinner.stop();
+	console.log();
+	console.log(OkOut + chalk.greenBright(` Generate or Update relative files for ${pkgInfo.fullname} OK!`));
 	console.log();
 
-	await updateTSConfigPaths(pkgDir, pkgName);
+	spinner = startSpinner(`Prettier files...`);
+	// 美化代码
+	await execa(
+		path.resolve(pkgInfo.root, "node_modules/.bin/prettier"),
+		["--write", `packages/${pkgInfo.dirname}/**/*.{js,ts}`],
+		{
+			stdio: "ignore"
+		}
+	);
+	spinner.stop();
+	console.log();
+	console.log(OkOut + chalk.greenBright(` Prettier files OK!`));
 	console.log();
 
-	await updatePkgPackageDotJson(pkgDir, pkgName, depPkg);
+	spinner = startSpinner(`bootstrap ... `);
+	await execa("lerna", ["bootstrap"], { cwd: pkgInfo.root, stdio: "ignore" });
+	spinner.stop();
+	console.log();
+	console.log(OkOut + chalk.greenBright(` bootstrap OK!`));
 	console.log();
 
-	await execa("lerna bootstrap", { stdio: "inherit" });
-	console.log(chalk.green(`${chalk.greenBright("✔")} Created ${pkgName} in ${pkgDir}!`));
+	console.log(chalk.green(`${chalk.greenBright("✔")} Created ${pkgInfo.fullname} in ${pkgInfo.path}!`));
 }

@@ -11,6 +11,9 @@ export const isWindows = process.platform === "win32";
 export const isMac = process.platform === "darwin";
 export const isLinux = process.platform === "linux";
 
+export const OkOut = chalk.greenBright("✔");
+export const ErrorOut = chalk.red("✘");
+
 /**
  * 在指定的cwd环境下的同步命令执行
  *

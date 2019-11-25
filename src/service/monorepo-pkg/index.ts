@@ -2,7 +2,7 @@ import path from "path";
 import { create as createLibOfMonorepo } from "./lib";
 import { create as createUIOfVue } from "./ui_vue";
 import { getPkgData } from "../../utils";
-import { getPackageInfo } from "./helper";
+import { getPackageInfo } from "../package-info";
 
 export async function createPackage(pkgFullName: string, depPkgs?: string[][]): Promise<void> {
 	const cwd = process.cwd();
@@ -20,7 +20,8 @@ export async function createPackage(pkgFullName: string, depPkgs?: string[][]): 
 		case "ui@taro":
 			break;
 		case "lib@monorepo":
-			await createLibOfMonorepo(pkgPath);
+		case "master":
+			await createLibOfMonorepo(pkgInfo, depPkgs);
 			break;
 	}
 }

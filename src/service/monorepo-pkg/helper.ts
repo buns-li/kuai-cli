@@ -1,99 +1,18 @@
-import chalk from "chalk";
 import path from "path";
 import fs from "fs-extra";
 import execa from "execa";
-import { sortObject, getUIPrefix, toCamelCase, getPkgData, startSpinner } from "../../utils";
-import { BranchType, PkgData, KuaiConfig } from "../../interface";
-
-export interface PackageInfo {
-	/**
-	 * 当前包所在的项目根目录
-	 */
-	root: string;
-	/**
-	 * 当前packages的工作目录
-	 */
-	cwd: string;
-	/**
-	 * 全名
-	 */
-	fullname: string;
-	/**
-	 * package对应的目录名称
-	 */
-	dirname: string;
-	/**
-	 * camel-case风格的命名
-	 */
-	camelCaseName: string;
-	/**
-	 * package对应的完整物理路径
-	 */
-	path: string;
-	/**
-	 * package中lib文件夹对应的物理路径
-	 */
-	libPath: string;
-	/**
-	 * package中test文件夹对应的物理路径
-	 */
-	testPath: string;
-	/**
-	 * 使用的方式
-	 */
-	usage: BranchType;
-	/**
-	 * package.json数据
-	 */
-	pkgData: PkgData;
-
-	siblings: PackageInfo[];
-}
+import { sortObject } from "../../utils";
+import { PackageInfo } from "../package-info";
 
 /**
  *
- * 获取packages中某个包的信息
+ * 利用`lerna create packagename`的命令行形式来创建包
  *
- * @param pkgPath 该包的物理路径
- * @param kuai 整个项目的kuai配置信息
+ *   主要利用lerna的良好monorepo支持
  *
- * @returns 包信息
+ * @param pkgInfo monorepo项目中当前包的信息数据
  */
-export function getPackageInfo(pkgPath: string, kuai: KuaiConfig, pkgFullName?: string): PackageInfo {
-	const dirname = path.basename(pkgPath);
-
-	const uiPrefix = getUIPrefix(kuai);
-
-	const purePkgName = dirname.replace(uiPrefix, "");
-
-	const camelCaseName = toCamelCase(
-		uiPrefix.toUpperCase() + "-" + purePkgName[0].toUpperCase() + purePkgName.substring(1)
-	);
-
-	const cwd = path.resolve(pkgPath, "../");
-
-	const pkgData = pkgFullName ? ({ name: pkgFullName } as PkgData) : getPkgData(pkgPath);
-
-	return {
-		root: path.resolve(cwd, "../"),
-		cwd,
-		dirname,
-		fullname: pkgData.name,
-		camelCaseName,
-		path: pkgPath,
-		libPath: path.resolve(pkgPath, `./lib/`),
-		testPath: path.resolve(pkgPath, `./test/`),
-		usage: kuai.branch,
-		pkgData,
-		siblings: fs
-			.readdirSync(cwd)
-			.map(f => path.resolve(cwd, f))
-			.filter(f => f !== pkgPath && fs.statSync(f).isDirectory())
-			.map(f => getPackageInfo(f, kuai))
-	} as PackageInfo;
-}
-
-export async function doLernaCreate(pkgInfo: PackageInfo): Promise<void> {
+export async function callLernaCreate(pkgInfo: PackageInfo): Promise<void> {
 	await execa("lerna", ["create", pkgInfo.fullname, `--description=${pkgInfo.fullname}`, "--yes"], {
 		stdio: "ignore"
 	});
@@ -101,7 +20,134 @@ export async function doLernaCreate(pkgInfo: PackageInfo): Promise<void> {
 	await fs.remove(path.resolve(pkgInfo.libPath, `${pkgInfo.dirname}.js`));
 }
 
-export async function supportVue(pkgInfo: PackageInfo): Promise<void> {
+/**
+ *
+ * 构建包的api-extractor.json文件
+ *
+ * @param pkgInfo monorepo项目中当前包的信息数据
+ */
+export async function generateApiExtractor(pkgInfo: PackageInfo): Promise<void> {
+	const apiExtractorPath = path.resolve(pkgInfo.path, "api-extractor.json");
+	// 创建api-extractor.json
+	await fs.writeFile(
+		apiExtractorPath,
+		JSON.stringify(await import("../../tpl/api-extractor").then(a => a.default), null, 2)
+	);
+}
+
+/**
+ *
+ * 针对lib类型项目的优化
+ *
+ *   tsconfig.json中的paths实现自动填充(智能提示)
+ *
+ * @param pkgInfo monorepo项目中当前包的信息数据
+ */
+export async function perfTSConfigPathsOfLib(pkgInfo: PackageInfo): Promise<void> {
+	const tsconfigPath = path.resolve(pkgInfo.root, "tsconfig.json");
+	if (!fs.existsSync(tsconfigPath)) return;
+	// 更新根目录下的tsconfig.json中的paths信息
+	const tsConfig = await fs.readJSON(tsconfigPath);
+	tsConfig.compilerOptions.paths = tsConfig.compilerOptions.paths || {};
+	tsConfig.compilerOptions.paths[pkgInfo.fullname] = [`packages/${pkgInfo.dirname}/lib/index.ts`];
+	await fs.writeFile(tsconfigPath, JSON.stringify(tsConfig, null, 2));
+}
+
+/**
+ *
+ * 转换指定包对应的package.json文件内容
+ *
+ * @param pkgInfo monorepo项目中当前包的信息数据
+ * @param [depPkgs] 当前包所需要依赖的其他包的信息,形式: [[包名,包版本],...]
+ */
+export async function transformPKJ(pkgInfo: PackageInfo, depPkgs?: string[][]): Promise<void> {
+	// 更新package.json中的依赖包选项
+	if (depPkgs && depPkgs.length) {
+		pkgInfo.pkgData.dependencies = depPkgs.reduce((prev, cur) => {
+			prev[cur[0]] = cur[1];
+			return prev;
+		}, pkgInfo.pkgData.dependencies || {});
+	}
+
+	pkgInfo.pkgData.keywords = pkgInfo.fullname.split("/");
+	pkgInfo.pkgData.license = "MIT";
+
+	await fs.writeFile(
+		path.resolve(pkgInfo.path, "./package.json"),
+		JSON.stringify(
+			sortObject(pkgInfo.pkgData, [
+				"name",
+				"version",
+				"description",
+				"license",
+				"private",
+				"workspaces",
+				"module",
+				"jsnext",
+				"main",
+				"unpkg",
+				"browser",
+				"style",
+				"types",
+				"typings",
+				"directories",
+				"files",
+				"author",
+				"repository",
+				"kuai",
+				"scripts",
+				"dependencies",
+				"devDependencies"
+			]),
+			null,
+			2
+		)
+	);
+}
+
+/**
+ * 调整当前包对应的package.json中的内容
+ *   包的项目类型: lib@monorepo
+ *
+ * @export
+ * @param {PackageInfo} pkgInfo
+ */
+export function transformPkgDataOfLib(pkgInfo: PackageInfo): PackageInfo {
+	pkgInfo.pkgData.module = `dist/index.esm.js`;
+	pkgInfo.pkgData.jsnext = `dist/index.mjs`;
+	pkgInfo.pkgData.main = `dist/index.cjs.js`;
+	pkgInfo.pkgData.browser = `dist/index.js`;
+	pkgInfo.pkgData.unpkg = `dist/index.min.js`;
+	pkgInfo.pkgData.types = `dist/index.d.ts`;
+	pkgInfo.pkgData.kuai = pkgInfo.pkgData.kuai || {
+		buildOptions: {
+			formats: ["esm", "cjs", "global", "esm-browser"],
+			external: null,
+			onlyProd: false
+		}
+	};
+
+	return pkgInfo;
+}
+
+/**
+ * 调整当前包对应的package.json中的内容
+ *   包的项目类型: ui@vue
+ *
+ * @export
+ * @param {PackageInfo} pkgInfo
+ */
+export function transformPkgDataOfUIVue(pkgInfo: PackageInfo): PackageInfo {
+	pkgInfo.pkgData.main = `dist/index.js`;
+	pkgInfo.pkgData.unpkg = `dist/index.min.js`;
+	pkgInfo.pkgData.style = `dist/index.css`;
+	pkgInfo.pkgData.types = `types/index.d.ts`;
+	pkgInfo.pkgData.files = ["types"];
+
+	return pkgInfo;
+}
+
+export async function supportVue(pkgInfo: PackageInfo, depPkgs?: string[][]): Promise<void> {
 	/**
 	 * 包的类型声明定义
 	 */
@@ -192,146 +238,16 @@ export default ${pkgInfo.camelCaseName};`,
 		allPkgDirs.reduce((prev, cur) => prev + `export * from "../packages/${cur.dirname}/types/index"\n`, ""),
 		{ encoding: "utf-8" }
 	);
+
+	await transformPKJ(transformPkgDataOfUIVue(pkgInfo), depPkgs);
 }
 
-export async function useLernaCreate(pkgDir: string, pkgName: string, isTS: boolean): Promise<void> {
-	const pkgDirName = path.basename(pkgDir);
-	await execa(`lerna`, ["create", pkgName, `--description=${pkgName}`, "--yes"], { stdio: "inherit" });
-	await fs.remove(path.resolve(pkgDir, `lib/${pkgDirName}.js`));
-	await fs.writeFile(path.resolve(pkgDir, `lib/index.${isTS ? "ts" : "js"}`), "");
-}
+export async function supportLib(pkgInfo: PackageInfo, depPkgs?: string[][]): Promise<void> {
+	await fs.writeFile(path.resolve(pkgInfo.libPath, "index.ts"), "");
 
-export async function lernaCreateInUI(pkgPath: string, pkgFullName: string): Promise<void> {
-	const pkgDirName = path.basename(pkgPath);
-	await execa(`lerna`, ["create", pkgFullName, `--description=${pkgFullName}`, "--yes"], { stdio: "inherit" });
-	await fs.remove(path.resolve(pkgPath, `lib/${pkgDirName}.js`));
-}
+	await generateApiExtractor(pkgInfo);
 
-export async function createApiExtractor(pkgDir: string, apiExtractorContent: any): Promise<void> {
-	const apiExtractorPath = path.resolve(pkgDir, "api-extractor.json");
-	// 创建api-extractor.json
-	await fs.writeFile(apiExtractorPath, JSON.stringify(apiExtractorContent, null, 2));
-	console.log(chalk.green(`${chalk.greenBright("✔")} Created ${apiExtractorPath}!`));
-}
+	await perfTSConfigPathsOfLib(pkgInfo);
 
-export async function updateTSConfigPaths(pkgDir: string, pkgFullName: string): Promise<void> {
-	const tsconfigPath = path.resolve(pkgDir, "../../tsconfig.json");
-
-	if (!fs.existsSync(tsconfigPath)) return;
-
-	const pkgDirName = path.basename(pkgDir);
-
-	// 更新根目录下的tsconfig.json中的paths信息
-	const tsConfig = await fs.readJSON(tsconfigPath);
-	tsConfig.compilerOptions.paths = tsConfig.compilerOptions.paths || {};
-	tsConfig.compilerOptions.paths[pkgFullName] = [`packages/${pkgDirName}/lib/index.ts`];
-	await fs.writeFile(tsconfigPath, JSON.stringify(tsConfig, null, 2));
-	console.log(chalk.green(`${chalk.greenBright("✔")} Updated "CompilerOptions.paths" in ${tsconfigPath}!`));
-}
-
-export async function updateUIPkgDotJson(pkgDir: string, pkgFullName: string, depPkgs: string[][]): Promise<void> {
-	const pkgJSONPath = path.resolve(pkgDir, `package.json`);
-	const pkgData = await fs.readJSON(pkgJSONPath);
-	pkgData.keywords = pkgFullName.split("/");
-	pkgData.license = "MIT";
-	pkgData.main = `dist/index.js`;
-	pkgData.unpkg = `dist/index.min.js`;
-	pkgData.style = `dist/index.css`;
-	pkgData.types = `types/index.d.ts`;
-	pkgData.files = ["types"];
-
-	// 更新package.json中的依赖包选项
-	if (depPkgs && depPkgs.length) {
-		pkgData.dependencies = depPkgs.reduce((prev, cur) => {
-			prev[cur[0]] = cur[1];
-			return prev;
-		}, pkgData.dependencies || {});
-	}
-
-	await fs.writeFile(
-		pkgJSONPath,
-		JSON.stringify(
-			sortObject(pkgData, [
-				"name",
-				"version",
-				"description",
-				"license",
-				"private",
-				"workspaces",
-				"main",
-				"unpkg",
-				"style",
-				"types",
-				"directories",
-				"files",
-				"author",
-				"repository",
-				"kuai",
-				"scripts",
-				"dependencies",
-				"devDependencies"
-			]),
-			null,
-			2
-		)
-	);
-}
-
-export async function updatePkgPackageDotJson(pkgDir: string, pkgFullName: string, depPkgs: string[][]): Promise<void> {
-	const pkgJSONPath = path.resolve(pkgDir, `package.json`);
-	const pkgDirName = path.basename(pkgDir);
-
-	const pkgData = await fs.readJSON(pkgJSONPath);
-	pkgData.keywords = pkgFullName.split("/");
-	pkgData.license = "MIT";
-	pkgData.module = `dist/${pkgDirName}.esm.js`;
-	pkgData.jsnext = `dist/${pkgDirName}.mjs`;
-	pkgData.main = `dist/${pkgDirName}.cjs.js`;
-	pkgData.browser = `dist/${pkgDirName}.js`;
-	pkgData.unpkg = `dist/${pkgDirName}.min.js`;
-	pkgData.types = `dist/${pkgDirName}.d.ts`;
-	pkgData.kuai = pkgData.kuai || {
-		buildOptions: {
-			formats: ["esm", "cjs", "global", "esm-browser"],
-			external: null,
-			onlyProd: false
-		}
-	};
-	// 更新package.json中的依赖包选项
-	if (depPkgs && depPkgs.length) {
-		pkgData.dependencies = depPkgs.reduce((prev, cur) => {
-			prev[cur[0]] = cur[1];
-			return prev;
-		}, pkgData.dependencies || {});
-	}
-	await fs.writeFile(
-		pkgJSONPath,
-		JSON.stringify(
-			sortObject(pkgData, [
-				"name",
-				"version",
-				"description",
-				"license",
-				"private",
-				"workspaces",
-				"module",
-				"jsnext",
-				"main",
-				"unpkg",
-				"types",
-				"typings",
-				"directories",
-				"files",
-				"author",
-				"repository",
-				"kuai",
-				"scripts",
-				"dependencies",
-				"devDependencies"
-			]),
-			null,
-			2
-		)
-	);
-	console.log(chalk.green(`${chalk.greenBright("✔")} Updated ${pkgJSONPath}!`));
+	await transformPKJ(transformPkgDataOfLib(pkgInfo), depPkgs);
 }

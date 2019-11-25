@@ -1,32 +1,30 @@
-import { PkgData } from "../../interface";
 import path from "path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import execa from "execa";
-import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
+import { PackageInfo } from "./../package-info";
+import { PkgData } from "../../interface";
 
-export async function build(pkgPath: string): Promise<void> {
-	const pkgDirName = path.basename(pkgPath);
-	const projectRoot = path.dirname(path.resolve(pkgPath, "../"));
-	const prettierBinPath = path.resolve(projectRoot, "node_modules/.bin/prettier");
+export async function build(pkgInfo: PackageInfo): Promise<void> {
+	const prettierBinPath = path.resolve(pkgInfo.root, "node_modules/.bin/prettier");
 
-	let pkgData = require(path.resolve(pkgPath, "./package.json")) as PkgData;
+	let pkgData = require(path.resolve(pkgInfo.path, "./package.json")) as PkgData;
 
-	await fs.remove(path.resolve(pkgPath, "dist"));
+	await fs.remove(path.resolve(pkgInfo.path, "dist"));
 
 	console.log(chalk.yellow(`Rolling up build ${pkgData.name}...`));
-	await execa("rollup", ["-c", "--environment", `TARGET:${pkgDirName}`], {
+	await execa("rollup", ["-c", "--environment", `TARGET:${pkgInfo.dirname}`], {
 		stdio: "inherit"
 	});
 	// 美化代码
-	await execa(prettierBinPath, ["--write", `packages/${pkgDirName}/dist/index.js`], {
+	await execa(prettierBinPath, ["--write", `packages/${pkgInfo.dirname}/dist/index.js`], {
 		stdio: "inherit"
 	});
 	console.log();
 
-	await fs.remove(path.resolve(projectRoot, "dist"));
+	await fs.remove(path.resolve(pkgInfo.root, "dist"));
 
-	pkgData = require(path.resolve(projectRoot, "./package.json")) as PkgData;
+	pkgData = require(path.resolve(pkgInfo.root, "./package.json")) as PkgData;
 
 	console.log(chalk.yellow(`Rolling up build ${pkgData.name}...`));
 	await execa("rollup", ["-c", "--environment", `TARGET:*`], { stdio: "inherit" });
@@ -36,7 +34,7 @@ export async function build(pkgPath: string): Promise<void> {
 	});
 	console.log();
 
-	console.log(chalk.bold(chalk.yellow(`Rolling up type definitions for ${pkgData.name}...`)));
+	// console.log(chalk.bold(chalk.yellow(`Rolling up type definitions for ${pkgData.name}...`)));
 
 	// const extractorConfigPath = path.resolve(projectRoot, "./api-extractor.json");
 	// const extractorConfig = ExtractorConfig.loadFileAndPrepare(extractorConfigPath);
@@ -52,7 +50,7 @@ export async function build(pkgPath: string): Promise<void> {
 	// 	);
 	// 	process.exitCode = 1;
 	// }
-	console.log();
+	// console.log();
 
 	return;
 }

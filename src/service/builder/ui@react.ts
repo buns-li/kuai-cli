@@ -1,3 +1,4 @@
-export async function build(pkg?: string): Promise<void> {
+import { PackageInfo } from "./../package-info";
+export async function build(pkgInfo: PackageInfo): Promise<void> {
 	return;
 }

@@ -23,15 +23,21 @@ export type BranchType =
 	| "cmp@uniapp"
 	| "cmp@taro";
 
+export interface KuaiBuildOptions {
+	formats: string[];
+	external?: string | null;
+	onlyProd?: boolean;
+}
+
 export interface KuaiConfig {
 	/**
 	 * 当前项目名称
 	 */
-	appName: string;
+	appName?: string;
 	/**
 	 * 当前目录
 	 */
-	cwd: string;
+	cwd?: string;
 	/**
 	 * 远程仓储地址
 	 */
@@ -44,6 +50,8 @@ export interface KuaiConfig {
 	 * ui組件的前綴
 	 */
 	uiPrefix?: string;
+
+	buildOptions?: KuaiBuildOptions;
 }
 
 export interface PublishConfigData {
@@ -65,8 +73,10 @@ export interface PkgData {
 	author?: string;
 	main?: string;
 	module?: string;
-	esm?: string;
+	jsnext?: string;
+	browser?: string;
 	unpkg?: string;
+	style?: string;
 	types?: string;
 	typeings?: string;
 	private?: boolean;

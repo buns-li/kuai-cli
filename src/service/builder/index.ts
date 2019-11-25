@@ -10,6 +10,7 @@ import { build as MonorepoBuild } from "./monorepo";
 import { build as SingleLibBuild } from "./lib@single";
 
 import { getKuaiConfig } from "../../utils";
+import { getPackageInfo } from "../package-info";
 
 /**
  *
@@ -37,8 +38,6 @@ function getBuildingPkgs(pkg?: string): string[] {
 				.readdirSync(pkgsDir)
 				.map(pkg => path.resolve(pkgsDir, pkg))
 				.filter(f => fs.statSync(f).isDirectory());
-
-			console.log("pkgs:", pkgs);
 		}
 	} else if (isInPkgs) {
 		// 每个包内执行的build
@@ -65,10 +64,10 @@ export async function build(pkg?: string): Promise<void> {
 	for (let i = 0, l = pkgs.length; i < l; i++) {
 		switch (kuai.branch) {
 			case "ui@vue":
-				await UIOfVueBuild(pkgs[i]);
+				await UIOfVueBuild(getPackageInfo(pkgs[i], kuai));
 				break;
 			case "ui@react":
-				await UIOfReactBuild(pkgs[i]);
+				await UIOfReactBuild(getPackageInfo(pkgs[i], kuai));
 				break;
 			case "ui@uniapp":
 				break;
@@ -89,7 +88,7 @@ export async function build(pkg?: string): Promise<void> {
 				break;
 			case "master":
 			case "lib@monorepo":
-				await MonorepoBuild(pkgs[i]);
+				await MonorepoBuild(getPackageInfo(pkgs[i], kuai));
 				break;
 		}
 	}

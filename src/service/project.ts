@@ -16,7 +16,7 @@ import {
 } from "../utils";
 
 function validIsMonorepo(branch: BranchType): boolean {
-	return branch === "lib@monorepo" || branch.startsWith("ui@");
+	return branch === "lib@monorepo" || branch === "master" || branch.startsWith("ui@");
 }
 
 function validIsIndependent(branch: BranchType): boolean {
@@ -54,7 +54,6 @@ async function doInitForMonorepo(cwd: string): Promise<void> {
 		lernaData.version = validIsIndependent(pkgData.kuai.branch) ? "independent" : "1.0.0";
 		await fs.writeFile(path.resolve(cwd, "lerna.json"), JSON.stringify(lernaData, null, 2));
 		console.log(chalk.bold(chalk.green(`${chalk.greenBright("✔")}  updated lerna.json info!`)));
-
 		await initLerna(cwd);
 	}
 }
@@ -63,7 +62,7 @@ async function doYarnInstall(cwd: string): Promise<void> {
 	const spinner = startSpinner("installing packages... ");
 	await execAsync("yarn", { cwd });
 	spinner.stop(true);
-	console.log(chalk.green(`${chalk.greenBright("✔")}  Installed packages!`));
+	console.log(chalk.green(`${chalk.greenBright("✔")} Installed packages!`));
 }
 
 async function openWithVSCode(cwd: string): Promise<void> {

@@ -11,7 +11,7 @@ export async function build(cwd: string): Promise<void> {
 	await execa("rollup", ["-c"], { stdio: "inherit" });
 
 	// 美化代码
-	await execa(path.resolve(cwd, "node_modules/.bin/prettier"), ["--write", `dist/*.js`], {
+	await execa(path.resolve(cwd, "node_modules/.bin/prettier"), ["--write", `dist/index.js`], {
 		stdio: "inherit"
 	});
 	console.log();

@@ -108,7 +108,7 @@ program
 			]
 		});
 
-		usrStdin.branch = branch;
+		usrStdin.branch = branch === "lib@monorepo" ? "master" : branch;
 
 		createProject(usrStdin).catch(err => {
 			console.log();

@@ -4,30 +4,30 @@ import chalk from "chalk";
 import execa from "execa";
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
 import { PkgData } from "./../../interface.d";
+import { PackageInfo } from "../package-info";
 
-export async function build(pkgPath: string): Promise<void> {
-	const pkgDirName = path.basename(pkgPath);
-	const projectRoot = path.resolve(pkgPath, "../../");
-	const pkgData = require(path.resolve(pkgPath, "./package.json")) as PkgData;
+export async function build(pkgInfo: PackageInfo): Promise<void> {
+	const pkgData = require(path.resolve(pkgInfo.path, "./package.json")) as PkgData;
 
-	await fs.remove(path.resolve(pkgPath, "dist"));
+	await fs.remove(path.resolve(pkgInfo.path, "dist"));
 
 	console.log(chalk.yellow(`Rolling up build ${pkgData.name}...`));
-	await execa("rollup", ["-c", "--environment", `TARGET:${pkgDirName}`], { stdio: "inherit" });
+	await execa("rollup", ["-c", "--environment", `TARGET:${pkgInfo.dirname}`], { stdio: "inherit" });
+	console.log();
 
+	console.log(chalk.yellow(`Prettier ${pkgData.name} dist files...`));
 	// 美化代码
 	await execa(
-		path.resolve(projectRoot, "node_modules/.bin/prettier"),
-		["--write", `packages/${pkgDirName}/dist/*.js`],
+		path.resolve(pkgInfo.root, "node_modules/.bin/prettier"),
+		["--write", `packages/${pkgInfo.dirname}/dist/!(*.min.js|*.min.mjs)`],
 		{
 			stdio: "inherit"
 		}
 	);
-
 	console.log();
 
 	console.log(chalk.bold(chalk.yellow(`Rolling up type definitions for ${pkgData.name}...`)));
-	const extractorConfigPath = path.resolve(pkgPath, "api-extractor.json");
+	const extractorConfigPath = path.resolve(pkgInfo.path, "api-extractor.json");
 	const extractorConfig = ExtractorConfig.loadFileAndPrepare(extractorConfigPath);
 	const result = Extractor.invoke(extractorConfig, {
 		localBuild: true,
@@ -43,7 +43,7 @@ export async function build(pkgPath: string): Promise<void> {
 	}
 	console.log();
 
-	await fs.remove(path.resolve(pkgPath, "dist/packages"));
+	await fs.remove(path.resolve(pkgInfo.path, "dist/packages"));
 
 	return;
 }

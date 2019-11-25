@@ -71,6 +71,7 @@ export async function transformPKJ(pkgInfo: PackageInfo, depPkgs?: string[][]): 
 
 	pkgInfo.pkgData.keywords = pkgInfo.fullname.split("/");
 	pkgInfo.pkgData.license = "MIT";
+	pkgInfo.pkgData.version = "1.0.0";
 
 	await fs.writeFile(
 		path.resolve(pkgInfo.path, "./package.json"),

@@ -114,12 +114,14 @@ export async function transformPKJ(pkgInfo: PackageInfo, depPkgs?: string[][]): 
  * @param {PackageInfo} pkgInfo
  */
 export function transformPkgDataOfLib(pkgInfo: PackageInfo): PackageInfo {
-	pkgInfo.pkgData.module = `dist/index.esm.js`;
-	pkgInfo.pkgData.jsnext = `dist/index.mjs`;
-	pkgInfo.pkgData.main = `dist/index.cjs.js`;
-	pkgInfo.pkgData.browser = `dist/index.js`;
-	pkgInfo.pkgData.unpkg = `dist/index.min.js`;
-	pkgInfo.pkgData.types = `dist/index.d.ts`;
+	const prefix = `dist/${pkgInfo.dirname}`;
+
+	pkgInfo.pkgData.module = `${prefix}.esm.js`;
+	pkgInfo.pkgData.jsnext = `${prefix}.mjs`;
+	pkgInfo.pkgData.main = `${prefix}.cjs.js`;
+	pkgInfo.pkgData.browser = `${prefix}.js`;
+	pkgInfo.pkgData.unpkg = `${prefix}.min.js`;
+	pkgInfo.pkgData.types = `${prefix}.d.ts`;
 	pkgInfo.pkgData.kuai = pkgInfo.pkgData.kuai || {
 		buildOptions: {
 			formats: ["esm", "cjs", "global", "esm-browser"],
@@ -139,10 +141,11 @@ export function transformPkgDataOfLib(pkgInfo: PackageInfo): PackageInfo {
  * @param {PackageInfo} pkgInfo
  */
 export function transformPkgDataOfUIVue(pkgInfo: PackageInfo): PackageInfo {
-	pkgInfo.pkgData.main = `dist/index.js`;
-	pkgInfo.pkgData.unpkg = `dist/index.min.js`;
-	pkgInfo.pkgData.style = `dist/index.css`;
-	pkgInfo.pkgData.types = `types/index.d.ts`;
+	const prefix = `dist/${pkgInfo.dirname}`;
+	pkgInfo.pkgData.main = `${prefix}.js`;
+	pkgInfo.pkgData.unpkg = `${prefix}.min.js`;
+	pkgInfo.pkgData.style = `${prefix}.css`;
+	pkgInfo.pkgData.types = `types/${pkgInfo.dirname}.d.ts`;
 	pkgInfo.pkgData.files = ["types"];
 
 	return pkgInfo;
@@ -154,7 +157,7 @@ export async function supportVue(pkgInfo: PackageInfo, depPkgs?: string[][]): Pr
 	 */
 	await fs.mkdirp(path.resolve(pkgInfo.path, "types"));
 	await fs.writeFile(
-		path.resolve(pkgInfo.path, "types/index.d.ts"),
+		path.resolve(pkgInfo.path, `types/${pkgInfo.dirname}.d.ts`),
 		`import Vue from "vue";
 
 export declare class ${pkgInfo.camelCaseName} extends Vue {
@@ -236,7 +239,10 @@ export default ${pkgInfo.camelCaseName};`,
 	// 更新最外部的types定义文件
 	await fs.writeFile(
 		path.resolve(pkgInfo.root, "types/index.d.ts"),
-		allPkgDirs.reduce((prev, cur) => prev + `export * from "../packages/${cur.dirname}/types/index"\n`, ""),
+		allPkgDirs.reduce(
+			(prev, cur) => prev + `export * from "../packages/${cur.dirname}/types/${cur.dirname}"\n`,
+			""
+		),
 		{ encoding: "utf-8" }
 	);
 

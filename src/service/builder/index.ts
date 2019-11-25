@@ -30,7 +30,7 @@ function getBuildingPkgs(pkg?: string): string[] {
 
 	if (isExistsPkgs) {
 		if (realPkgName) {
-			pkgs.push(realPkgName);
+			pkgs.push(path.resolve(cwd, `packages/${realPkgName}`));
 		} else {
 			// 根目录执行的build
 			const pkgsDir = path.resolve(cwd, "packages");
